@@ -49,3 +49,8 @@ def start_message(message):
 
 Введи /reminder ,  чтобы создать напоминалку
     ''')
+
+
+if __name__ == '__main__':
+    print('Бот начал работу')
+    bot.polling()
