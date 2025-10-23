@@ -23,14 +23,14 @@ class ChatType(Enum):
 
 
 # Словарь для определения временных интервалов
-TIME_UNIT = {
-    ('cек', ' c '): 1,
-    'мин': 60,
-    ('час', ' ч '): 3600,
-    ('дн', 'день', ' д '): 86400,
-    'нед': 604800,
-    ('мес', ' м '): 2592000,
-}
+# TIME_UNIT = {
+#     ('cек', ' c '): 1,
+#     'мин': 60,
+#     ('час', ' ч '): 3600,
+#     ('дн', 'день', ' д '): 86400,
+#     'нед': 604800,
+#     ('мес', ' м '): 2592000,
+# }
 
 # Хранилище данных (пока так. Потом мб надо будет подключить какую-нить базу данных)
 users_data = {}
@@ -83,6 +83,48 @@ def parse_reminder_text(text):
 
     return
 
+# Парсинг относительного времени "через Х минут сделай то-то"
+def parse_relative_time(text):
+    patterns = [
+        r'через\s+(\d+)\s+([а-я]+)\s+(.+)',
+        r'\s+(\d+)\s+([а-я]+)\s+(.+)',
+        r'напомни\s+через\s+(\d+)\s+([а-я]+)\s+(.+)'
+    ]
+
+    time_units = {
+        re.compile('сек'): 1,
+        re.compile(r'мин'): 60,
+        re.compile(r'час'): 3600,
+        re.compile(r'дн'): 86400,
+        re.compile(r'нед'): 604800,
+        re.compile(r'мес'): 2592000,
+    }
+
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            # Выделяем время и текст напоминания
+            time_when = int(match.group(1))
+            unit = match.group(2)
+            reminder_text = match.group(3).split()
+
+            # Находим множитель для единицы времени
+            multiplier = None
+            for unit_key, unit_mult in time_units.items():
+                if unit_key.search(unit):
+                    multiplier = unit_mult
+                    break
+
+            # Устанавливаем время в секундах, через сколько напоминать
+            if multiplier:
+                time_delta = datetime.timedelta(seconds=time_when * multiplier)
+                return time_delta, reminder_text
+    return None
+
+
+# Парсинг абсолютного времени "в 18:00 завтра"
+def parse_absolute_time():
+    return
 
 # Обработка естественного языка пользователя
 @bot.message_handler(func=lambda message: True)
