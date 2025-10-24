@@ -8,7 +8,7 @@ import re # Для регулярных выражений
 import time # Для низкоуровневой работы со временем
 from enum import Enum # Для работы с перечислениями = именованными константами
 
-from bot import user_data
+from bot import user_data, send_reminder
 
 # (просто улучшает читабельность, синтаксический сахар)
 
@@ -24,7 +24,7 @@ class ChatType(Enum):
 
 # Хранилище данных (пока так. Потом мб надо будет подключить какую-нить базу данных)
 users_data = {}
-group_data = {}
+all_reminders = {}
 
 
 def create_menu():
@@ -57,21 +57,49 @@ def start_message(message):
     '''
     bot.send_message(message.chat.id, bot_start_message, reply_markup=create_menu())
 
-
+# Обработчик кнопки создания напоминалки
 @bot.message_handler(func=lambda message: message.text == 'Создать напоминалку')
-def create_reminder(message):
+def create_reminder_button(message):
     bot.send_message(message.chat.id, 'Чего ты хочешь от меня?')
 
+# Создание напоминания
+def create_reminder(chat_id, reminder_text, reminder_time, user_settings):
+    now = datetime.datetime.now()
+    delay = (reminder_time - now).total_seconds()
+    if delay <= 0: return False
+
+    # Создаем таймер
+    timer = threading.Timer(delay, send_reminder, [chat_id, reminder_text, user_settings])
+    timer.daemon = True # Указываем, что он работает фоново
+    timer.start()
+
+    # Сохранение напоминания
+    if chat_id not in all_reminders:
+        all_reminders[chat_id] = {}
+    all_reminders[chat_id].append({
+        'text': reminder_text,
+        'time': reminder_time,
+        'timer': timer
+    })
+    return True
 
 # Парсинг сообщения и извлечение названия и времени напоминания
 def parse_reminder_text(text):
-    to_lowercase = text.lower()
+    text_lowercase = text.lower()
 
     # Относительное время
+    relative_match = parse_relative_time(text_lowercase)
+    if relative_match:
+        time_delta, reminder_text = relative_match
+        reminder_time = datetime.datetime.now() + time_delta
+        return reminder_time, reminder_text
 
     # Абсолютное время
+    absolute_match = parse_absolute_time(text_lowercase)
+    if absolute_match:
+        return absolute_match
 
-    return
+    return None, None
 
 # Парсинг относительного времени "через Х минут сделай то-то"
 def parse_relative_time(text):
@@ -110,7 +138,6 @@ def parse_relative_time(text):
                 time_delta = datetime.timedelta(seconds=time_when * multiplier)
                 return time_delta, reminder_text
     return None
-
 
 # Парсинг абсолютного времени "в 18:00 завтра"
 def parse_absolute_time(text):
@@ -151,14 +178,28 @@ def parse_absolute_time(text):
                 return reminder_time, reminder_text
     return None, None
 
+
 # Обработка естественного языка пользователя
 @bot.message_handler(func=lambda message: True)
-def handler_language(message):
+def handler_natural_language(message):
     text = message.text
     chat_id = message.chat.id
-    reminder_text, reminder_time = True
 
+    # Инициализация пользователя
+    if chat_id not in user_data:
+        user_data[chat_id] = {}
 
+    # Парсинг напоминания
+    reminder_text, reminder_time =  parse_reminder_text(text)
+
+    if not reminder_text or not reminder_time:
+        # Если бот ничего не понял, показываем образец
+        if not any(word in text.lower for word in ['напомни', 'завтра', 'через', 'в']):
+            return
+        bot.send_message(message, 'Я глюпи и не понял запрос o(TヘTo). \n\nПопробуй ещё раз. Примерно в таком формате: \n\n"через 2 часа позвонить маме" или "Встреча завтра в 18:00"')
+    return
+
+    reminder = create_reminder()
 
 if __name__ == '__main__':
     print('Бот начал работу')
