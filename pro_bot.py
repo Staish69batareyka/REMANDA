@@ -22,16 +22,6 @@ class ChatType(Enum):
     GROUP = 'group'
 
 
-# Словарь для определения временных интервалов
-# TIME_UNIT = {
-#     ('cек', ' c '): 1,
-#     'мин': 60,
-#     ('час', ' ч '): 3600,
-#     ('дн', 'день', ' д '): 86400,
-#     'нед': 604800,
-#     ('мес', ' м '): 2592000,
-# }
-
 # Хранилище данных (пока так. Потом мб надо будет подключить какую-нить базу данных)
 users_data = {}
 group_data = {}
@@ -123,8 +113,43 @@ def parse_relative_time(text):
 
 
 # Парсинг абсолютного времени "в 18:00 завтра"
-def parse_absolute_time():
-    return
+def parse_absolute_time(text):
+    now = datetime.datetime.now()
+    days_of_week = {
+        ('понедельник', 'в понедельник'): 0,
+        ('вторник', 'во вторник'): 1,
+        ('среда', 'в среду'): 2,
+        ('четверг', 'в четверг'): 3,
+        ('пятница', 'в пятницу'): 4,
+        ('суббота', 'в субботу'): 5,
+        ('воскресенье', 'в воскресенье'): 6,
+    }
+
+    # Для слова "завтра"
+    if 'завтра' in text:
+        target_date = now.date() + datetime.timedelta(days=1)
+        time_match = re.search(r'(\d{1, 2})[:\s]?(\d{2})?]', text)
+        if time_match:
+            hour = int(time_match.group(1))
+            minute = int(time_match.group(2) or 0)
+            reminder_time = datetime.datetime.combine(target_date, datetime.time(hour, minute))
+            reminder_text = re.sub(r'(завтра|в\s+\d{1,2}[:\s]?\d{0,2})', '', text)
+            return reminder_time, reminder_text
+
+    for day_name, day_num in days_of_week.items():
+        if day_name in text:
+            days_ahead = day_num - now.weekday() # Сколько дней осталось до нужного дня недели
+            if days_ahead <= 0: # Если получилось отрицательное число, то точно больше недели осталось
+                days_ahead += 7
+            target_date = now.date() + datetime.timedelta(days=days_ahead)
+            time_match = re.search(r'(\d{1, 2})[:\s]?(\d{2})?]', text)
+            if time_match:
+                hour = int(time_match.group(1))
+                minute = int(time_match.group(2) or 0)
+                reminder_time = datetime.datetime.combine(target_date, datetime.time(hour, minute))
+                reminder_text = re.sub(r'(завтра|в\s+\d{1,2}[:\s]?\d{0,2})', '', text)
+                return reminder_time, reminder_text
+    return None, None
 
 # Обработка естественного языка пользователя
 @bot.message_handler(func=lambda message: True)
